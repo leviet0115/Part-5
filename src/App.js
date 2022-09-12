@@ -5,15 +5,11 @@ import NewBlog from "./components/NewBlog";
 import Noti from "./components/Notification";
 import blogService from "./services/blogs";
 import loginService from "./services/login";
+import Togglable from "./components/Togglable";
 
 const App = () => {
   const [blogs, setBlogs] = useState([]);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [loggedUser, setLoggedUser] = useState(null);
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
-  const [url, setUrl] = useState("");
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
@@ -29,16 +25,12 @@ const App = () => {
     }
   }, []);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const loginWith = async (credential) => {
     try {
-      const user = await loginService.getToken({ username, password });
+      const user = await loginService.getToken(credential);
       window.localStorage.setItem("user", JSON.stringify(user));
       blogService.setToken(user.token);
-      blogService.setToken(user.token);
       setLoggedUser(user);
-      setUsername("");
-      setPassword("");
     } catch (error) {
       setMsg({ msg: "Wrong username or password!", type: "error" });
       setTimeout(() => setMsg(null), 2000);
@@ -50,10 +42,9 @@ const App = () => {
     setLoggedUser(null);
   };
 
-  const handleNewBlog = async (e) => {
+  const createBlog = async (blog) => {
     try {
-      e.preventDefault();
-      const newBlog = await blogService.createNewBlog({ author, title, url });
+      const newBlog = await blogService.createNewBlog(blog);
       setMsg({
         msg: `A new blog is added by ${loggedUser.username}`,
         type: "message",
@@ -67,48 +58,61 @@ const App = () => {
     }
   };
 
-  if (loggedUser === null) {
-    return (
-      <div>
-        <h2>Log in to the application</h2>
-        <Login
-          username={username}
-          password={password}
-          setPassword={setPassword}
-          setUsername={setUsername}
-          handleclick={handleLogin}
-        />
-        {msg && <Noti message={msg} />}
-      </div>
-    );
-  }
+  const updateBlog = async (blog) => {
+    try {
+      const updatedBlog = await blogService.updateBlog(blog);
+      const newBlogs = blogs.map((b) => (b.id === blog.id ? updatedBlog : b));
+      setBlogs(newBlogs);
+    } catch (error) {
+      setMsg({ msg: "Something's wrong.", type: "error" });
+      setTimeout(() => setMsg(null), 2000);
+    }
+  };
+
+  const deleteBlog = async (id) => {
+    try {
+      await blogService.deleteBlog(id);
+      const newBlogs = blogs.filter((blog) => blog.id !== id);
+      setBlogs(newBlogs);
+      setMsg({ msg: `Blog ${id} is deleted!`, type: "message" });
+      setTimeout(() => setMsg(null), 2000);
+    } catch (error) {
+      setMsg({ msg: "Something's wrong.", type: "error" });
+      setTimeout(() => setMsg(null), 2000);
+    }
+  };
 
   return (
     <div>
-      <p>
-        {loggedUser.username} logged in{" "}
-        <button onClick={handleLogout}>Log out</button>
-      </p>
-      <div>
-        <h2>create a new blog</h2>
-        <NewBlog
-          title={title}
-          author={author}
-          url={url}
-          setAuthor={setAuthor}
-          setTitle={setTitle}
-          setUrl={setUrl}
-          handleClick={handleNewBlog}
-        />
-      </div>
-      <div>
-        <h2>blogs</h2>
-
-        {blogs.map((blog) => (
-          <Blog key={blog.id} blog={blog} />
-        ))}
-      </div>
       {msg && <Noti message={msg} />}
+      {!loggedUser ? (
+        <Login loginWith={loginWith} />
+      ) : (
+        <div>
+          <p>
+            {loggedUser.username} logged in{" "}
+            <button onClick={handleLogout}>Log out</button>
+          </p>
+          <Togglable label="New blog">
+            <NewBlog createBlog={createBlog} />
+          </Togglable>
+
+          <div>
+            <h2>blogs</h2>
+            {blogs
+              .sort((a, b) => a.likes - b.likes)
+              .map((blog) => (
+                <Blog
+                  key={blog.id}
+                  blog={blog}
+                  updateBlog={updateBlog}
+                  deleteBlog={deleteBlog}
+                  loggedUser={loggedUser}
+                />
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
